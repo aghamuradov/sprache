@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Wortfrequenzanalyse - Zipf-Gesetz</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .upload-section {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            border: 2px dashed #667eea;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            display: block;
+            padding: 20px;
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1.1em;
+        }
+
+        .file-input-label:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .file-name {
+            margin-top: 15px;
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+
+        .analyze-btn {
+            width: 100%;
+            padding: 15px;
+            margin-top: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .analyze-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .analyze-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 25px;
+            border-radius: 15px;
+            color: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .chart-container {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+        }
+
+        .chart-title {
+            font-size: 1.5em;
+            color: #667eea;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+        }
+
+        .table-container {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background: #667eea;
+            color: white;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+        }
+
+        tr:hover {
+            background: #f0f0f0;
+        }
+
+        .export-section {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .export-btn {
+            padding: 15px 30px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .export-btn:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border: 1px solid #f5c6cb;
+            display: none;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 5px;
+        }
+
+        .info-box h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .info-box p {
+            color: #555;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 PDF Wortfrequenzanalyse</h1>
+        <p class="subtitle">Analysiere PDF-Bücher mit dem Zipf-Gesetz (Deutsch & Englisch)</p>
+
+        <div class="info-box">
+            <h3>🔍 Was macht diese App?</h3>
+            <p>
+                Lade ein PDF-Buch hoch und erhalte detaillierte linguistische Analysen:
+                <strong>Wortfrequenzen</strong>, <strong>Zipf-Gesetz-Visualisierung</strong>, 
+                <strong>Type-Token-Ratio</strong>, <strong>Hapax Legomena</strong> und mehr.
+                Die App erkennt automatisch Deutsch und Englisch und filtert Stopwörter.
+            </p>
+        </div>
+
+        <div class="upload-section">
+            <div class="file-input-wrapper">
+                <input type="file" id="pdfFile" accept=".pdf">
+                <label for="pdfFile" class="file-input-label">
+                    📄 PDF-Datei auswählen (max. 50MB)
+                </label>
+            </div>
+            <div class="file-name" id="fileName">Keine Datei ausgewählt</div>
+            <button class="analyze-btn" id="analyzeBtn" disabled>Analyse starten</button>
+            <div class="error-message" id="errorMessage"></div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>PDF wird analysiert... Dies kann einige Sekunden dauern.</p>
+        </div>
+
+        <div class="results" id="results">
+            <h2 style="color: #667eea; margin-bottom: 30px;">📊 Analyseergebnisse</h2>
+
+            <div class="stats-grid" id="statsGrid"></div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">📈 Zipf-Gesetz: Wortfrequenz vs. Rang (Log-Skala)</h3>
+                <div class="chart-wrapper">
+                    <canvas id="zipfChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">🏆 Top 20 häufigste Wörter</h3>
+                <div class="chart-wrapper">
+                    <canvas id="topWordsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h3 class="chart-title">📉 Zipf-Abweichung der Top 50 Wörter</h3>
+                <div class="chart-wrapper">
+                    <canvas id="deviationChart"></canvas>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <h3 class="chart-title">📋 Top 50 Wörter (aus 5000 analysierten)</h3>
+                <table id="wordsTable">
+                    <thead>
+                        <tr>
+                            <th>Rang</th>
+                            <th>Wort</th>
+                            <th>Häufigkeit</th>
+                            <th>Zipf-Produkt</th>
+                            <th>Erwartete Häufigkeit</th>
+                            <th>Abweichung %</th>
+                        </tr>
+                    </thead>
+                    <tbody id="wordsTableBody"></tbody>
+                </table>
+            </div>
+
+            <div class="export-section">
+                <button class="export-btn" id="exportCsv">📥 Top 5000 als CSV exportieren</button>
+                <button class="export-btn" id="exportJson">📥 Top 5000 als JSON exportieren</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allWordsData = null;
+        let zipfChartInstance = null;
+        let topWordsChartInstance = null;
+        let deviationChartInstance = null;
+
+        document.getElementById('pdfFile').addEventListener('change', function(e) {
+            const fileName = e.target.files[0]?.name || 'Keine Datei ausgewählt';
+            document.getElementById('fileName').textContent = fileName;
+            document.getElementById('analyzeBtn').disabled = !e.target.files[0];
+        });
+
+        document.getElementById('analyzeBtn').addEventListener('click', async function() {
+            const fileInput = document.getElementById('pdfFile');
+            const file = fileInput.files[0];
+            
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('pdf_file', file);
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Fehler bei der Analyse');
+                }
+
+                allWordsData = data.all_words;
+                displayResults(data);
+            } catch (error) {
+                document.getElementById('errorMessage').textContent = error.message;
+                document.getElementById('errorMessage').style.display = 'block';
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        });
+
+        function displayResults(data) {
+            const { statistics, top_words, zipf_plot_data } = data;
+
+            // Statistiken anzeigen
+            const statsGrid = document.getElementById('statsGrid');
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-label">🌍 Erkannte Sprache</div>
+                    <div class="stat-value">${statistics.detected_language}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">📝 Gesamtwörter</div>
+                    <div class="stat-value">${statistics.total_words.toLocaleString()}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🔤 Einzigartige Wörter</div>
+                    <div class="stat-value">${statistics.unique_words.toLocaleString()}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">📊 Type-Token Ratio</div>
+                    <div class="stat-value">${statistics.type_token_ratio}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🎯 Hapax Legomena</div>
+                    <div class="stat-value">${statistics.hapax_legomena.toLocaleString()}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">💯 Hapax %</div>
+                    <div class="stat-value">${statistics.hapax_percentage}%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">📏 Ø Wortlänge</div>
+                    <div class="stat-value">${statistics.avg_word_length}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">🔢 Zipf-Konstante</div>
+                    <div class="stat-value">${statistics.zipf_constant.toLocaleString()}</div>
+                </div>
+            `;
+
+            // Zipf-Chart (Log-Skala)
+            const zipfCtx = document.getElementById('zipfChart').getContext('2d');
+            if (zipfChartInstance) zipfChartInstance.destroy();
+            zipfChartInstance = new Chart(zipfCtx, {
+                type: 'line',
+                data: {
+                    labels: zipf_plot_data.ranks,
+                    datasets: [
+                        {
+                            label: 'Tatsächliche Frequenz',
+                            data: zipf_plot_data.frequencies,
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Ideales Zipf-Gesetz',
+                            data: zipf_plot_data.expected,
+                            borderColor: '#764ba2',
+                            backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'logarithmic',
+                            title: { display: true, text: 'Rang (Log)', font: { size: 14 } }
+                        },
+                        y: {
+                            type: 'logarithmic',
+                            title: { display: true, text: 'Häufigkeit (Log)', font: { size: 14 } }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: true, position: 'top' }
+                    }
+                }
+            });
+
+            // Top Words Bar Chart
+            const topWordsCtx = document.getElementById('topWordsChart').getContext('2d');
+            if (topWordsChartInstance) topWordsChartInstance.destroy();
+            const top20 = top_words.slice(0, 20);
+            topWordsChartInstance = new Chart(topWordsCtx, {
+                type: 'bar',
+                data: {
+                    labels: top20.map(w => w.word),
+                    datasets: [{
+                        label: 'Häufigkeit',
+                        data: top20.map(w => w.frequency),
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                        borderColor: '#667eea',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Häufigkeit' } }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+
+            // Deviation Chart
+            const deviationCtx = document.getElementById('deviationChart').getContext('2d');
+            if (deviationChartInstance) deviationChartInstance.destroy();
+            const top50 = top_words.slice(0, 50);
+            deviationChartInstance = new Chart(deviationCtx, {
+                type: 'line',
+                data: {
+                    labels: top50.map(w => w.word),
+                    datasets: [{
+                        label: 'Abweichung vom Zipf-Gesetz (%)',
+                        data: top50.map(w => w.deviation_percent),
+                        borderColor: '#764ba2',
+                        backgroundColor: 'rgba(118, 75, 162, 0.2)',
+                        borderWidth: 2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Abweichung %' } }
+                    },
+                    plugins: {
+                        legend: { display: true }
+                    }
+                }
+            });
+
+            // Tabelle füllen
+            const tableBody = document.getElementById('wordsTableBody');
+            tableBody.innerHTML = top_words.map(word => `
+                <tr>
+                    <td>${word.rank}</td>
+                    <td><strong>${word.word}</strong></td>
+                    <td>${word.frequency}</td>
+                    <td>${word.zipf_product}</td>
+                    <td>${word.expected_frequency}</td>
+                    <td>${word.deviation_percent}%</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('results').style.display = 'block';
+        }
+
+        document.getElementById('exportCsv').addEventListener('click', async function() {
+            await exportData('csv');
+        });
+
+        document.getElementById('exportJson').addEventListener('click', async function() {
+            await exportData('json');
+        });
+
+        async function exportData(format) {
+            if (!allWordsData) return;
+
+            try {
+                const response = await fetch(`/export/${format}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ words: allWordsData })
+                });
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `word_frequency_top5000.${format}`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } catch (error) {
+                alert('Fehler beim Export: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
